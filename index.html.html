@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PickPilot</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <style>
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen relative pb-20">
+
+  <!-- Header -->
+  <header class="border-b border-slate-800 bg-slate-950/90 backdrop-blur sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-2xl font-bold tracking-tight text-emerald-400 flex items-center gap-2">
+            <i class="fa-solid fa-compass"></i> PickPilot
+          </h1>
+          <span id="adminBadge" class="hidden text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">
+            Admin Mode
+          </span>
+        </div>
+        <p class="text-xs text-slate-400 mt-0.5">Global Directory & Control Hub</p>
+      </div>
+
+      <div class="flex items-center flex-wrap gap-2">
+        <!-- Rules & Regulations Button -->
+        <button onclick="openModal('rulesModal')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 transition">
+          <i class="fa-solid fa-book-bookmark text-emerald-400"></i> Rules & Regs
+        </button>
+
+        <div id="authStatusArea" class="flex items-center gap-2"></div>
+
+        <!-- Admin Control Toolbar -->
+        <div id="adminActionGroup" class="hidden flex items-center flex-wrap gap-2">
+          <button onclick="openModal('createClientModal')" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 transition shadow">
+            <i class="fa-solid fa-clock"></i> + Create Custom Time Client
+          </button>
+          <button onclick="openModal('userApprovalModal')" class="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 transition">
+            <i class="fa-solid fa-users"></i> Manage Members
+          </button>
+          <button onclick="openModal('bulkModal')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold px-3 py-2 rounded-lg transition">
+            <i class="fa-solid fa-paste"></i> Bulk Auto-Paste
+          </button>
+          <button onclick="openModal('singleModal')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold px-3 py-2 rounded-lg transition">
+            <i class="fa-solid fa-plus"></i> Add Listing
+          </button>
+          <button onclick="exportData()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs font-semibold px-2.5 py-2 rounded-lg transition" title="Export Backup">
+            <i class="fa-solid fa-download"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Live Status & Expiration Banner -->
+  <div id="approvalBanner" class="bg-amber-950/40 border-b border-amber-800/60 px-4 py-2 text-center text-xs text-amber-300 flex items-center justify-center gap-2"></div>
+
+  <!-- Main Content -->
+  <main class="max-w-7xl mx-auto px-4 py-6">
+    <div class="bg-slate-800/80 border border-slate-700 rounded-xl p-4 shadow-lg mb-6 grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+      <div class="md:col-span-5 relative">
+        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3.5 text-slate-400 text-sm"></i>
+        <input id="searchInput" type="text" placeholder="Search user, country, or code..." 
+               class="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+               oninput="applyFilter()" />
+      </div>
+
+      <div class="md:col-span-4 relative">
+        <select id="countrySelect" onchange="applyFilter()" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-emerald-500">
+          <option value="ALL">All Countries / Codes</option>
+        </select>
+      </div>
+
+      <div class="md:col-span-3 flex items-center justify-between md:justify-end gap-3 text-sm">
+        <span class="text-slate-400">Total: <strong id="resultCount" class="text-emerald-400">0</strong></span>
+        <button onclick="resetFilters()" class="text-xs bg-slate-700/60 hover:bg-slate-700 px-2.5 py-1.5 rounded text-slate-300">
+          Reset Filter
+        </button>
+      </div>
+    </div>
+
+    <div id="listingsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+
+    <div id="noResults" class="hidden text-center py-16">
+      <i class="fa-regular fa-folder-open text-4xl text-slate-600 mb-3"></i>
+      <p class="text-slate-400 text-base">No listings match your search criteria.</p>
+    </div>
+  </main>
+
+  <!-- ==================== RULES & REGULATIONS MODAL ==================== -->
+  <div id="rulesModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-slate-800 border border-slate-700 rounded-xl max-w-lg w-full p-6 shadow-2xl relative">
+      <button onclick="closeModal('rulesModal')" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+      <div class="flex items-center gap-2 mb-4">
+        <i class="fa-solid fa-shield-halved text-emerald-400 text-xl"></i>
+        <h2 class="text-lg font-bold text-white">PickPilot Rules & Regulations</h2>
+      </div>
+
+      <div class="text-xs text-slate-300 space-y-3.5 max-h-96 overflow-y-auto pr-1">
+        <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-700/60">
+          <h4 class="font-bold text-emerald-400 mb-1 flex items-center gap-1.5">
+            <i class="fa-solid fa-user-lock"></i> 1. Authorized Access & Time Expiration
+          </h4>
+          <p class="text-slate-400">Client passes are provisioned with custom expiration periods. Once your designated time limit elapses, account access will automatically lock, and credentials will be masked immediately.</p>
+        </div>
+
+        <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-700/60">
+          <h4 class="font-bold text-emerald-400 mb-1 flex items-center gap-1.5">
+            <i class="fa-solid fa-ban"></i> 2. Prohibition of Unauthorized Sharing
+          </h4>
+          <p class="text-slate-400">Access links are strictly single-user licenses. Redistributing, re-selling, or publicly posting your direct access link or exposed credentials will lead to immediate cancellation.</p>
+        </div>
+
+        <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-700/60">
+          <h4 class="font-bold text-emerald-400 mb-1 flex items-center gap-1.5">
+            <i class="fa-solid fa-database"></i> 3. Data Integrity & Anti-Scraping
+          </h4>
+          <p class="text-slate-400">Automated scraping, bot querying, or bulk extraction tools against PickPilot directory listings are strictly prohibited.</p>
+        </div>
+
+        <div class="bg-slate-900/80 p-3 rounded-lg border border-slate-700/60">
+          <h4 class="font-bold text-emerald-400 mb-1 flex items-center gap-1.5">
+            <i class="fa-solid fa-handshake"></i> 4. Renewal & Support Policy
+          </h4>
+          <p class="text-slate-400">To extend your session or request a new active access window upon expiration, reach out directly to the Administrator.</p>
+        </div>
+      </div>
+
+      <div class="mt-5 pt-3 border-t border-slate-700 flex justify-end">
+        <button onclick="closeModal('rulesModal')" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 font-semibold rounded text-xs text-white">
+          I Understand & Agree
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== CREATE CUSTOM TIME CLIENT MODAL ==================== -->
+  <div id="createClientModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-slate-800 border border-slate-700 rounded-xl max-w-md w-full p-6 shadow-2xl relative">
+      <button onclick="closeModal('createClientModal')" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+      <h2 class="text-lg font-bold text-white mb-2 flex items-center gap-2">
+        <i class="fa-solid fa-clock text-emerald-400"></i> Create Custom Time Client
+      </h2>
+      <p class="text-xs text-slate-400 mb-4">
+        Set any custom duration (e.g. <strong>2s</strong>, <strong>30m</strong>, <strong>1h</strong>, or <strong>3d</strong>). Passwords lock immediately when time runs out.
+      </p>
+
+      <form id="createClientForm" onsubmit="handleCreateClientSubmit(event)" class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Client Username</label>
+          <input type="text" id="clientUser" required placeholder="e.g. client_vip" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-slate-100" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Client Password</label>
+          <input type="text" id="clientPass" required placeholder="e.g. pass123" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-slate-100" />
+        </div>
+
+        <!-- Custom Duration Inputs -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Custom Access Duration</label>
+          <div class="grid grid-cols-3 gap-2">
+            <div class="col-span-2">
+              <input type="number" id="customTimeVal" min="1" step="1" value="30" required 
+                     class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-slate-100" />
+            </div>
+            <div>
+              <select id="customTimeUnit" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-slate-200">
+                <option value="s">Seconds (s)</option>
+                <option value="m" selected>Minutes (m)</option>
+                <option value="h">Hours (h)</option>
+                <option value="d">Days (d)</option>
+              </select>
+            </div>
+          </div>
+          <span class="text-[10px] text-slate-500 mt-1 block">Examples: 2 Seconds for quick testing, 30 Minutes, or 1 Hour.</span>
+        </div>
+
+        <button type="submit" class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 font-semibold rounded text-sm text-white mt-2">
+          Create & Generate Expiring Link
+        </button>
+      </form>
+
+      <!-- Client Share Box -->
+      <div id="clientLinkBox" class="hidden mt-4 p-3 bg-slate-900 border border-emerald-500/40 rounded-lg">
+        <div class="text-xs text-emerald-400 font-bold mb-1 flex items-center gap-1">
+          <i class="fa-solid fa-link"></i> Share this link with your client:
+        </div>
+        <div class="flex gap-2">
+          <input id="generatedLinkInput" type="text" readonly class="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-xs mono text-slate-300 select-all" />
+          <button onclick="copyGeneratedLink(this)" class="bg-emerald-600 hover:bg-emerald-500 px-3 py-1 rounded text-xs text-white font-semibold flex items-center gap-1 shrink-0">
+            <i class="fa-regular fa-copy"></i> Copy
+          </button>
+        </div>
+        <p class="text-[11px] text-slate-400 mt-1">Their access will automatically expire and revoke after the chosen time window.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== MANAGE MEMBERS MODAL ==================== -->
+  <div id="userApprovalModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-slate-800 border border-slate-700 rounded-xl max-w-2xl w-full p-6 shadow-2xl relative">
+      <button onclick="closeModal('userApprovalModal')" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="text-lg font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-users text-blue-400"></i> Member Accounts & Links
+        </h2>
+        <button onclick="openModal('createClientModal')" class="text-xs bg-emerald-600 hover:bg-emerald-500 px-2.5 py-1 rounded text-white font-semibold">
+          + New Client
+        </button>
+      </div>
+      <p class="text-xs text-slate-400 mb-4">
+        Active client access links and account management.
+      </p>
+
+      <div id="approvalListContainer" class="max-h-80 overflow-y-auto space-y-2"></div>
+    </div>
+  </div>
+
+  <!-- Login / Register / Admin Modal -->
+  <div id="authModal" class="fixed inset-0 bg-black/75 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-slate-800 border border-slate-700 rounded-xl max-w-sm w-full p-6 shadow-2xl relative">
+      <button onclick="closeModal('authModal')" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+
+      <div class="flex border-b border-slate-700 mb-4 text-xs font-semibold">
+        <button id="tabLogin" onclick="switchAuthTab('login')" class="flex-1 pb-2 border-b-2 border-emerald-500 text-emerald-400">Sign In</button>
+        <button id="tabRegister" onclick="switchAuthTab('register')" class="flex-1 pb-2 border-b-2 border-transparent text-slate-400 hover:text-slate-200">Register</button>
+        <button id="tabAdmin" onclick="switchAuthTab('admin')" class="flex-1 pb-2 border-b-2 border-transparent text-amber-400 hover:text-amber-300">Admin Key</button>
+      </div>
+
+      <form id="authForm" onsubmit="handleAuthSubmit(event)" class="space-y-3">
+        <div id="userFieldGroup">
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Username</label>
+          <input type="text" id="authUsername" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-slate-100" />
+        </div>
+        <div id="passFieldGroup">
+          <label id="authPassLabel" class="block text-xs font-semibold text-slate-300 mb-1">Password</label>
+          <input type="password" id="authPassword" required class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-slate-100" />
+        </div>
+        <button type="submit" id="authSubmitBtn" class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 font-semibold rounded text-sm text-white mt-2">
+          Sign In
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Bulk Paste Modal -->
+  <div id="bulkModal" class="fixed inset-0 bg-black/75 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-slate-800 border border-slate-700 rounded-xl max-w-xl w-full p-6 shadow-2xl relative">
+      <button onclick="closeModal('bulkModal')" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+      <h2 class="text-lg font-bold text-white mb-2 flex items-center gap-2">
+        <i class="fa-solid fa-paste text-emerald-400"></i> Bulk Auto-Paste
+      </h2>
+      <p class="text-xs text-slate-400 mb-3">Paste blocks with USER, PASSWORD, COUNTRY, and COUNTRY CODE.</p>
+      <textarea id="bulkTextInput" rows="8" placeholder="USER : example_user&#10;PASSWORD : pass123&#10;COUNTRY : Philippines&#10;COUNTRY CODE : PH..." 
+                class="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-xs mono text-slate-200 focus:outline-none focus:border-emerald-500 mb-4"></textarea>
+      <div class="flex justify-end gap-2">
+        <button onclick="closeModal('bulkModal')" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm">Cancel</button>
+        <button onclick="handleBulkImport()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 font-semibold rounded text-sm text-white">Import All</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add/Edit Single Item Modal -->
+  <div id="singleModal" class="fixed inset-0 bg-black/75 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-slate-800 border border-slate-700 rounded-xl max-w-md w-full p-6 shadow-2xl relative">
+      <button onclick="closeModal('singleModal')" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+      <h2 id="singleModalTitle" class="text-lg font-bold text-white mb-4">Add Account</h2>
+      <form id="singleForm" onsubmit="handleSingleSave(event)" class="space-y-3">
+        <input type="hidden" id="editIndex" value="-1" />
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">USERNAME</label>
+          <input type="text" id="addUsername" required class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-slate-200" />
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">PASSWORD</label>
+          <input type="text" id="addPassword" required class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-slate-200" />
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">COUNTRY</label>
+            <input type="text" id="addCountry" required placeholder="Philippines" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-slate-200" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">COUNTRY CODE</label>
+            <input type="text" id="addCountryCode" required placeholder="PH" maxlength="4" class="w-full bg-slate-900 border border-slate-700 rounded p-2 text-sm text-slate-200 uppercase" />
+          </div>
+        </div>
+        <div class="flex justify-end gap-2 pt-2">
+          <button type="button" onclick="closeModal('singleModal')" class="px-3 py-1.5 bg-slate-700 rounded text-sm">Cancel</button>
+          <button type="submit" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 font-semibold rounded text-sm text-white">Save Account</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // 75 Accounts Initial Seed
+    const defaultSeed = [
+      { user: "altynbekovv06", pass: "Nartay2012", country: "Kazakhstan", code: "KZ" },
+      { user: "jacksouthernnn", pass: "mofwaj-kombis-9Vigta", country: "United Kingdom", code: "GB" },
+      { user: "dhoomy99945", pass: "aa0558870026", country: "Saudi Arabia", code: "SA" },
+      { user: "JOEM_D5", pass: "PAMBIDD9", country: "Philippines", code: "PH" },
+      { user: "thebazilee6", pass: "12047800", country: "Philippines", code: "PH" },
+      { user: "bloxpirate_15", pass: "Andreikoh2009", country: "Philippines", code: "PH" },
+      { user: "Progrind04", pass: "ALBERTOREYESJR", country: "Philippines", code: "PH" },
+      { user: "Rsyzzz2", pass: "rfnaz123789", country: "Indonesia", code: "ID" },
+      { user: "seconda629", pass: "12345678901", country: "Philippines", code: "PH" },
+      { user: "dondfight", pass: "1111111111", country: "Philippines", code: "PH" },
+      { user: "tralalilo_tralala456", pass: "09267130291kris01", country: "Philippines", code: "PH" },
+      { user: "ramdom_fruit96", pass: "EVAN2024$$", country: "France, French Republic", code: "FR" }, { user: "Payung_889", pass: "bayubuset123", country: "Indonesia", code: "ID" }, { user: "Mayotte976mp", pass: "12345678909", country: "Mayotte", code: "YT" }, { user: "FLASH_HP8", pass: "klxhonda", country: "Indonesia", code: "ID" }, { user: "Ari3s_00", pass: "116477120367", country: "Philippines", code: "PH" }, { user: "WILFRE_SINCUENTA", pass: "WILFREIBER C13", country: "Venezuela", code: "VE" }, { user: "Dumgoen", pass: "00998877661122k", country: "Vietnam", code: "VN" }, { user: "1234567JWK9", pass: "THIAGOMATIAS17*ññ", country: "Colombia", code: "CO" }, { user: "TherealNyvex", pass: "jakeslix2011", country: "United States of America", code: "US" }, { user: "Blackwing2k11", pass: "phamkhackhiem", country: "Hong Kong", code: "HK" }, { user: "Noob_person709", pass: "09079302731", country: "Philippines", code: "PH" }, { user: "CarloTzy04", pass: "Jeth00rr22", country: "Philippines", code: "PH" }, { user: "graciajaymar@gmail.com", pass: "Jeth00rr22", country: "Philippines", code: "PH" }, { user: "Josesafadoladrao", pass: "seucuebom4", country: "Brazil", code: "BR" }, { user: "naruto_388828", pass: "09657654992", country: "Philippines", code: "PH" }, { user: "Edavichuleta", pass: "hermano3000", country: "Puerto Rico", code: "PR" }, { user: "bouchraseghabi218@gmail.com", pass: "repe.211", country: "Spain", code: "ES" }, { user: "Princehappy21", pass: "ANDREONLY", country: "United States", code: "US" }, { user: "artificialOsiris", pass: "khangvip", country: "Vietnam", code: "VN" }, { user: "noobtopro12k67", pass: "4876669123", country: "Philippines", code: "PH" }, { user: "Edisonprs_2021", pass: "Aa198329", country: "Russia", code: "RU" }, { user: "chimuelo72638", pass: "messi51p", country: "Chile", code: "CL" }, { user: "Dylan5032103", pass: "dylan503120", country: "United States of America", code: "US" }, { user: "Viluvbub", pass: "Alw@ys2004", country: "Taiwan", code: "TW" }, { user: "bjdifidid", pass: "dirmansonjaya", country: "Indonesia", code: "ID" }, { user: "ottt760", pass: "09103176308", country: "Philippines", code: "PH" }, { user: "Alexlbm342", pass: "1325alejandro", country: "Colombia", code: "CO" }, { user: "jellycatsmellydog", pass: "Teddydog", country: "United Kingdom", code: "GB" }, { user: "mipzz72", pass: "miptahkhur", country: "Indonesia", code: "ID" }, { user: "meromal10", pass: "abcdefghi", country: "Bolivia", code: "BO" }, { user: "dead1235448", pass: "09953497158", country: "Philippines", code: "PH" }, { user: "CASH5309", pass: "09074199456", country: "Philippines", code: "PH" }, { user: "itspadol17", pass: "LAMPUNAYA", country: "Philippines", code: "PH" }, { user: "kla1a1a", pass: "Adot77$$", country: "Canada", code: "CA" },
+      { user: "superlucky09875", pass: "dareamzin", country: "Cambodia", code: "KH" },
+      { user: "Dstar1675", pass: "David2154", country: "Nigeria", code: "NG" },
+      { user: "Dinasourpro138", pass: "01June07", country: "Malaysia", code: "MY" },
+      { user: "LaMexicanPlankton", pass: "ilovemom", country: "United States", code: "US" },
+      { user: "Robloxianrbx1238", pass: "Obama1212", country: "Indonesia", code: "ID" },
+      { user: "anadelismrt4", pass: "sheluhniko", country: "Belgium", code: "BE" },
+      { user: "salsa_332033", pass: "salsa cantek imutttt", country: "Indonesia", code: "ID" },
+      { user: "roblox_user_5259283657", pass: "Hitman786!", country: "Spain", code: "ES" },
+      { user: "Sushi999941", pass: "Samer_5678", country: "UAE", code: "AE" },
+      { user: "iconiqfromback", pass: "jlace423", country: "United States", code: "US" },
+      { user: "teodor123eproyydy", pass: "teoemafia", country: "Bulgaria", code: "BG" },
+      { user: "gabrelotoxic123", pass: "Alessa19.2015@m", country: "Spain", code: "ES" },
+      { user: "1qrzm", pass: "Daniel Top1", country: "Kyrgyzstan", code: "KG" },
+      { user: "RIHANgrfin", pass: "197719771977", country: "Italy", code: "IT" },
+      { user: "Skdms_919013", pass: "cho181818!", country: "South Korea", code: "KR" },
+      { user: "themainchar1", pass: "10102009", country: "Georgia", code: "GE" },
+      { user: "Shedow_boonie", pass: "reneduram1312", country: "Germany", code: "DE" },
+      { user: "Callangamer13", pass: "Callan13", country: "United Kingdom", code: "GB" },
+      { user: "neumann_231113", pass: "joel_2013bestplayer", country: "Germany", code: "DE" },
+      { user: "Greatlearner76", pass: "Trealan2011", country: "United Kingdom", code: "GB" },
+      { user: "Ilyesleboss86", pass: "ilyesnouh", country: "France", code: "FR" },
+      { user: "anissa2025340", pass: "anids0088", country: "Belgium", code: "BE" },
+      { user: "deeck168", pass: "kkl08032012", country: "Mexico", code: "MX" },
+      { user: "Reaper_free444", pass: "roblox29", country: "United States", code: "US" },
+      { user: "mino16053", pass: "mino16053", country: "United States", code: "US" },
+      { user: "jaygaramalt", pass: "Jayontop1!", country: "United States", code: "US" },
+      { user: "dondayo02", pass: "OSArenren6", country: "Sweden", code: "SE" },
+      { user: "minagoebi", pass: "minagoebi", country: "Indonesia", code: "ID" },
+      { user: "pelotocino_new", pass: "salsita67", country: "Spain", code: "ES" }
+    ];
+
+    let savedListings = localStorage.getItem('pickpilot_local_db');
+    let listings = (savedListings && JSON.parse(savedListings).length > 0) 
+                   ? JSON.parse(savedListings) 
+                   : defaultSeed;
+
+    function saveLocal() {
+      localStorage.setItem('pickpilot_local_db', JSON.stringify(listings));
+    }
+
+    const ADMIN_SECRET_KEY = "admin123";
+    let currentUser = localStorage.getItem('logged_in_user') || null;
+    let isAdmin = localStorage.getItem('is_admin_mode') === 'true';
+    let authMode = 'login';
+
+    function getMembers() {
+      return JSON.parse(localStorage.getItem('pickpilot_members') || '{}');
+    }
+    function saveMembers(m) {
+      localStorage.setItem('pickpilot_members', JSON.stringify(m));
+    }
+
+    // ==========================================
+    // AUTO-LOGIN & EXPIRATION PARAMETER CHECKER
+    // ==========================================
+    (function checkAutoLoginFromURL() {
+      const params = new URLSearchParams(window.location.search);
+      const autoUser = params.get('autoUser');
+      const autoPass = params.get('autoPass');
+      const expTime = params.get('exp');
+
+      if (autoUser && autoPass) {
+        const mems = getMembers();
+        mems[autoUser] = {
+          pass: autoPass,
+          expiresAt: expTime ? parseInt(expTime, 10) : (Date.now() + 3600000),
+          joined: new Date().toLocaleDateString()
+        };
+        saveMembers(mems);
+
+        currentUser = autoUser;
+        isAdmin = false;
+        localStorage.setItem('logged_in_user', currentUser);
+        localStorage.setItem('is_admin_mode', 'false');
+
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    })();
+
+    // Active Verification & Expiration Checker
+    function isCurrentApproved() {
+      if (isAdmin) return true;
+      if (!currentUser) return false;
+      const mems = getMembers();
+      const userObj = mems[currentUser];
+      if (!userObj || !userObj.expiresAt) return false;
+
+      return Date.now() < userObj.expiresAt;
+    }
+
+    function formatTimeRemaining(ms) {
+      if (ms <= 0) return "Expired (00s)";
+      const totalSec = Math.floor(ms / 1000);
+      const hrs = Math.floor(totalSec / 3600);
+      const mins = Math.floor((totalSec % 3600) / 60);
+      const secs = totalSec % 60;
+
+      if (hrs > 0) {
+        return `${hrs}h ${mins.toString().padStart(2, '0')}m ${secs.toString().padStart(2, '0')}s`;
+      } else if (mins > 0) {
+        return `${mins}m ${secs.toString().padStart(2, '0')}s`;
+      } else {
+        return `${secs}s`;
+      }
+    }
+
+    function checkAuthUI() {
+      const authArea = document.getElementById('authStatusArea');
+      const adminActions = document.getElementById('adminActionGroup');
+      const adminBadge = document.getElementById('adminBadge');
+      const approvalBanner = document.getElementById('approvalBanner');
+
+      if (isAdmin) {
+        approvalBanner.classList.add('hidden');
+        adminActions.classList.remove('hidden');
+        adminBadge.classList.remove('hidden');
+        authArea.innerHTML = `
+          <div class="flex items-center gap-2 bg-amber-950/60 border border-amber-700/60 rounded-lg px-3 py-1.5 text-xs text-amber-300">
+            <i class="fa-solid fa-shield-halved"></i>
+            <span class="font-bold">ADMIN</span>
+            <button onclick="logout()" class="text-amber-400 hover:text-red-400 ml-2" title="Log Out Admin">
+              <i class="fa-solid fa-right-from-bracket"></i>
+            </button>
+          </div>
+        `;
+      } else if (currentUser) {
+        adminActions.classList.add('hidden');
+        adminBadge.classList.add('hidden');
+        const approved = isCurrentApproved();
+        const mems = getMembers();
+        const expAt = mems[currentUser]?.expiresAt || 0;
+        const remainingMs = expAt - Date.now();
+
+        approvalBanner.classList.remove('hidden');
+        if (approved) {
+          approvalBanner.className = "bg-emerald-950/40 border-b border-emerald-800/60 px-4 py-2 text-center text-xs text-emerald-300 flex items-center justify-center gap-2";
+          approvalBanner.innerHTML = `
+            <i class="fa-solid fa-circle-check"></i>
+            <span>Verified Client: <strong>${escapeHtml(currentUser)}</strong> | Time Left: <strong id="userLiveTimer" class="font-mono text-emerald-200">${formatTimeRemaining(remainingMs)}</strong></span>
+          `;
+        } else {
+          approvalBanner.className = "bg-rose-950/60 border-b border-rose-800/80 px-4 py-2 text-center text-xs text-rose-300 flex items-center justify-center gap-2";
+          approvalBanner.innerHTML = `
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            <span>Access Expired! Your session time has ended and passwords are locked. Contact Admin for renewal.</span>
+          `;
+        }
+
+        authArea.innerHTML = `
+          <div class="flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs">
+            <i class="fa-solid fa-circle-user text-emerald-400"></i>
+            <span class="text-slate-200 font-semibold">${escapeHtml(currentUser)}</span>
+            <span class="text-[10px] px-1.5 py-0.2 rounded font-bold ${approved ? 'bg-emerald-900 text-emerald-300' : 'bg-rose-900 text-rose-300'}">
+              ${approved ? 'Active' : 'Expired'}
+            </span>
+            <button onclick="logout()" class="text-slate-400 hover:text-red-400 ml-2" title="Log Out">
+              <i class="fa-solid fa-right-from-bracket"></i>
+            </button>
+          </div>
+        `;
+      } else {
+        approvalBanner.classList.remove('hidden');
+        approvalBanner.className = "bg-slate-950 border-b border-slate-800 px-4 py-2 text-center text-xs text-slate-400 flex items-center justify-center gap-2";
+        approvalBanner.innerHTML = `
+          <i class="fa-solid fa-lock text-amber-400"></i>
+          <span>Public View: Passwords locked. Log in or ask Admin for an access pass link.</span>
+          <button onclick="openModal('authModal')" class="underline font-bold text-amber-300 hover:text-amber-100 ml-1">Sign In / Register</button>
+        `;
+        adminActions.classList.add('hidden');
+        adminBadge.classList.add('hidden');
+        authArea.innerHTML = `
+          <button onclick="openModal('authModal')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold px-3 py-2 rounded-lg text-slate-200 flex items-center gap-1.5 transition">
+            <i class="fa-solid fa-lock text-amber-400"></i> Sign In / Register
+          </button>
+        `;
+      }
+    }
+
+    // Live countdown loop (locks passwords immediately when timer reaches zero)
+    setInterval(() => {
+      if (currentUser && !isAdmin) {
+        const mems = getMembers();
+        const expAt = mems[currentUser]?.expiresAt || 0;
+        const diff = expAt - Date.now();
+        const timerSpan = document.getElementById('userLiveTimer');
+        if (timerSpan) {
+          timerSpan.textContent = formatTimeRemaining(diff);
+        }
+
+        // Moment it expires: immediately flip UI and re-blur passwords
+        if (diff <= 0) {
+          checkAuthUI();
+          applyFilter();
+        }
+      }
+    }, 1000);
+
+    function switchAuthTab(mode) {
+      authMode = mode;
+      const tabLogin = document.getElementById('tabLogin');
+      const tabRegister = document.getElementById('tabRegister');
+      const tabAdmin = document.getElementById('tabAdmin');
+      const userField = document.getElementById('userFieldGroup');
+      const passLabel = document.getElementById('authPassLabel');
+      const submitBtn = document.getElementById('authSubmitBtn');
+
+      tabLogin.className = "flex-1 pb-2 border-b-2 " + (mode === 'login' ? "border-emerald-500 text-emerald-400" : "border-transparent text-slate-400");
+      tabRegister.className = "flex-1 pb-2 border-b-2 " + (mode === 'register' ? "border-emerald-500 text-emerald-400" : "border-transparent text-slate-400");
+      tabAdmin.className = "flex-1 pb-2 border-b-2 " + (mode === 'admin' ? "border-amber-500 text-amber-400" : "border-transparent text-slate-400");
+
+      if (mode === 'admin') {
+        userField.classList.add('hidden');
+        passLabel.textContent = "Admin Secret Key";
+        submitBtn.textContent = "Access Admin Control";
+        submitBtn.className = "w-full py-2 bg-amber-600 hover:bg-amber-500 font-semibold rounded text-sm text-white mt-2";
+      } else {
+        userField.classList.remove('hidden');
+        passLabel.textContent = "Password";
+        submitBtn.className = "w-full py-2 bg-emerald-600 hover:bg-emerald-500 font-semibold rounded text-sm text-white mt-2";
+        submitBtn.textContent = (mode === 'login' ? "Sign In" : "Register");
+      }
+    }
+
+    function handleAuthSubmit(e) {
+      e.preventDefault();
+      const p = document.getElementById('authPassword').value.trim();
+
+      if (authMode === 'admin') {
+        if (p === ADMIN_SECRET_KEY) {
+          isAdmin = true;
+          currentUser = 'Admin';
+          localStorage.setItem('is_admin_mode', 'true');
+          localStorage.setItem('logged_in_user', 'Admin');
+          closeModal('authModal');
+          checkAuthUI();
+          applyFilter();
+        } else {
+          alert("Invalid Admin Key.");
+        }
+        return;
+      }
+
+      const u = document.getElementById('authUsername').value.trim();
+      const mems = getMembers();
+
+      if (authMode === 'register') {
+        if (mems[u]) return alert("Username already registered!");
+        mems[u] = { pass: p, expiresAt: 0, joined: new Date().toLocaleDateString() };
+        saveMembers(mems);
+
+        if (!isAdmin) {
+          currentUser = u;
+          localStorage.setItem('logged_in_user', currentUser);
+          localStorage.setItem('is_admin_mode', 'false');
+        }
+
+        alert(`Account created for ${u}! Contact Admin to grant an active time-pass.`);
+      } else {
+        if (!mems[u] || mems[u].pass !== p) return alert("Invalid username or password.");
+        currentUser = u;
+        isAdmin = false;
+        localStorage.setItem('logged_in_user', currentUser);
+        localStorage.setItem('is_admin_mode', 'false');
+      }
+
+      document.getElementById('authForm').reset();
+      closeModal('authModal');
+      checkAuthUI();
+      applyFilter();
+    }
+
+    function logout() {
+      currentUser = null;
+      isAdmin = false;
+      localStorage.removeItem('logged_in_user');
+      localStorage.removeItem('is_admin_mode');
+      checkAuthUI();
+      applyFilter();
+    }
+
+    // ==========================================
+    // CUSTOM ADJUSTABLE TIME CALCULATOR
+    // ==========================================
+    function calculateCustomMilliseconds(val, unit) {
+      const num = parseInt(val, 10);
+      if (unit === 's') return num * 1000;
+      if (unit === 'm') return num * 60 * 1000;
+      if (unit === 'h') return num * 3600 * 1000;
+      if (unit === 'd') return num * 86400 * 1000;
+      return num * 60 * 1000;
+    }
+
+    function handleCreateClientSubmit(e) {
+      e.preventDefault();
+      if (!isAdmin) return;
+
+      const u = document.getElementById('clientUser').value.trim();
+      const p = document.getElementById('clientPass').value.trim();
+      const val = document.getElementById('customTimeVal').value;
+      const unit = document.getElementById('customTimeUnit').value;
+
+      if (!u || !p || !val) return;
+
+      const durationMs = calculateCustomMilliseconds(val, unit);
+      const expirationTimestamp = Date.now() + durationMs;
+
+      const mems = getMembers();
+      mems[u] = { pass: p, expiresAt: expirationTimestamp, joined: new Date().toLocaleDateString() };
+      saveMembers(mems);
+
+      const baseUrl = window.location.origin + window.location.pathname;
+      const clientUrl = `${baseUrl}?autoUser=${encodeURIComponent(u)}&autoPass=${encodeURIComponent(p)}&exp=${expirationTimestamp}`;
+
+      const linkBox = document.getElementById('clientLinkBox');
+      const input = document.getElementById('generatedLinkInput');
+      input.value = clientUrl;
+      linkBox.classList.remove('hidden');
+
+      renderApprovalList();
+      alert(`Client "${u}" created with ${val}${unit} duration! Copy link below.`);
+    }
+
+    function copyGeneratedLink(btn) {
+      const input = document.getElementById('generatedLinkInput');
+      navigator.clipboard.writeText(input.value).then(() => {
+        const orig = btn.innerHTML;
+        btn.innerHTML = `<i class="fa-solid fa-check"></i> Copied!`;
+        setTimeout(() => { btn.innerHTML = orig; }, 1500);
+      });
+    }
+
+    function renderApprovalList() {
+      const container = document.getElementById('approvalListContainer');
+      const mems = getMembers();
+      const users = Object.keys(mems);
+
+      if (users.length === 0) {
+        container.innerHTML = `<div class="text-center py-8 text-xs text-slate-500">No member accounts created yet. Click "+ New Client" above.</div>`;
+        return;
+      }
+
+      const baseUrl = window.location.origin + window.location.pathname;
+
+      container.innerHTML = users.map(user => {
+        const uData = mems[user];
+        const isStillValid = (uData.expiresAt && Date.now() < uData.expiresAt);
+        const remaining = uData.expiresAt ? formatTimeRemaining(uData.expiresAt - Date.now()) : "No Time Set";
+        const clientUrl = `${baseUrl}?autoUser=${encodeURIComponent(user)}&autoPass=${encodeURIComponent(uData.pass)}&exp=${uData.expiresAt}`;
+
+        return `
+          <div class="bg-slate-900 border border-slate-700/80 p-3 rounded-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-2">
+            <div>
+              <div class="text-xs font-bold text-slate-200 flex items-center gap-2">
+                ${escapeHtml(user)}
+                <span class="text-[10px] px-2 py-0.5 rounded font-bold ${isStillValid ? 'bg-emerald-900/60 text-emerald-400 border border-emerald-700' : 'bg-rose-900/60 text-rose-400 border border-rose-700'}">
+                  ${isStillValid ? 'Active (' + remaining + ')' : 'Expired / Locked'}
+                </span>
+              </div>
+              <div class="text-[10px] text-slate-500 mt-0.5">Password: <span class="font-mono text-slate-300">${escapeHtml(uData.pass)}</span></div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-1.5 self-end md:self-center">
+              <button onclick="copyClientAccessLink('${escapeAttr(clientUrl)}', this)" class="text-xs px-2.5 py-1 rounded font-semibold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1" title="Copy Link">
+                <i class="fa-solid fa-share-nodes"></i> Share Link
+              </button>
+
+              <!-- Quick Time Adjusters -->
+              <button onclick="adjustTimeToUser('${escapeAttr(user)}', 30, 'm')" class="text-xs px-2 py-1 rounded font-semibold bg-indigo-600 hover:bg-indigo-500 text-white" title="Add 30 Minutes">
+                +30m
+              </button>
+              <button onclick="adjustTimeToUser('${escapeAttr(user)}', 1, 'h')" class="text-xs px-2 py-1 rounded font-semibold bg-indigo-600 hover:bg-indigo-500 text-white" title="Add 1 Hour">
+                +1h
+              </button>
+              <button onclick="adjustTimeToUser('${escapeAttr(user)}', 24, 'h')" class="text-xs px-2 py-1 rounded font-semibold bg-indigo-600 hover:bg-indigo-500 text-white" title="Add 24 Hours">
+                +24h
+              </button>
+
+              <button onclick="revokeUser('${escapeAttr(user)}')" class="text-xs px-2 py-1 rounded font-semibold bg-rose-700 hover:bg-rose-600 text-white" title="Immediately Lock">
+                Lock
+              </button>
+              <button onclick="deleteMember('${escapeAttr(user)}')" class="text-slate-400 hover:text-rose-400 text-xs p-1" title="Delete Account">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function adjustTimeToUser(username, val, unit) {
+      if (!isAdmin) return;
+      const mems = getMembers();
+      if (mems[username]) {
+        const msToAdd = calculateCustomMilliseconds(val, unit);
+        const currentExp = (mems[username].expiresAt && mems[username].expiresAt > Date.now()) 
+                           ? mems[username].expiresAt 
+                           : Date.now();
+        mems[username].expiresAt = currentExp + msToAdd;
+        saveMembers(mems);
+        renderApprovalList();
+        checkAuthUI();
+        applyFilter();
+      }
+    }
+
+    function revokeUser(username) {
+      if (!isAdmin) return;
+      const mems = getMembers();
+      if (mems[username]) {
+        mems[username].expiresAt = 0; // immediate lockout
+        saveMembers(mems);
+        renderApprovalList();
+        checkAuthUI();
+        applyFilter();
+      }
+    }
+
+    function copyClientAccessLink(url, btn) {
+      navigator.clipboard.writeText(url).then(() => {
+        const orig = btn.innerHTML;
+        btn.innerHTML = `<i class="fa-solid fa-check"></i> Copied!`;
+        setTimeout(() => { btn.innerHTML = orig; }, 1500);
+      });
+    }
+
+    function deleteMember(username) {
+      if (!isAdmin) return;
+      if (!confirm(`Delete user "${username}" permanently?`)) return;
+      const mems = getMembers();
+      delete mems[username];
+      saveMembers(mems);
+      renderApprovalList();
+      checkAuthUI();
+      applyFilter();
+    }
+
+    // ==================== DIRECTORY & FILTERS ====================
+    function updateCountrySelect() {
+      const select = document.getElementById('countrySelect');
+      const currentVal = select.value;
+      const map = new Map();
+      listings.forEach(item => {
+        const key = item.code?.toUpperCase();
+        if (key && !map.has(key)) map.set(key, item.country);
+      });
+
+      const sorted = Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+      let html = `<option value="ALL">All Countries / Codes</option>`;
+      sorted.forEach(([code, name]) => {
+        html += `<option value="${code}">${name} (${code})</option>`;
+      });
+      select.innerHTML = html;
+      select.value = currentVal || "ALL";
+    }
+
+    function render(data) {
+      const container = document.getElementById('listingsContainer');
+      const noResults = document.getElementById('noResults');
+      const count = document.getElementById('resultCount');
+      count.textContent = data.length;
+
+      if (data.length === 0) {
+        container.innerHTML = '';
+        noResults.classList.remove('hidden');
+        return;
+      }
+      noResults.classList.add('hidden');
+
+      const canViewPass = isCurrentApproved();
+
+      container.innerHTML = data.map((item, idx) => {
+        let passwordRow = '';
+        if (canViewPass) {
+          passwordRow = `
+            <div class="flex items-center justify-between bg-slate-900/90 p-2 rounded border border-slate-700/60 mt-0.5">
+              <span id="pass-${idx}" class="font-mono text-amber-300 truncate">${escapeHtml(item.pass)}</span>
+              <div class="flex items-center gap-2 ml-2">
+                <button onclick="toggleVisibility('pass-${idx}', this)" class="text-slate-400 hover:text-slate-200" title="Toggle Show/Hide">
+                  <i class="fa-solid fa-eye text-xs"></i>
+                </button>
+                <button onclick="copyText('${escapeAttr(item.pass)}', this)" class="text-slate-400 hover:text-emerald-400" title="Copy Password">
+                  <i class="fa-regular fa-copy"></i>
+                </button>
+              </div>
+            </div>
+          `;
+        } else {
+          const label = currentUser ? "Access Expired / Locked" : "Sign in & get verified to view";
+          passwordRow = `
+            <div onclick="openModal('rulesModal')" class="cursor-pointer flex items-center justify-between bg-slate-900/40 p-2 rounded border border-dashed border-slate-700 mt-0.5 hover:border-amber-500/50 transition">
+              <span class="font-mono text-slate-500 blur-sm select-none">••••••••••••</span>
+              <span class="text-[11px] text-amber-400/90 flex items-center gap-1">
+                <i class="fa-solid fa-lock text-[10px]"></i> ${label}
+              </span>
+            </div>
+          `;
+        }
+
+        let adminActionHtml = '';
+        if (isAdmin) {
+          const originalIndex = listings.indexOf(item);
+          adminActionHtml = `
+            <div class="flex items-center gap-2">
+              <button onclick="editListing(${originalIndex})" class="text-slate-400 hover:text-emerald-400 text-xs" title="Edit">
+                <i class="fa-solid fa-pen"></i>
+              </button>
+              <button onclick="deleteListing(${originalIndex})" class="text-slate-400 hover:text-rose-400 text-xs" title="Delete">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>
+          `;
+        }
+
+        return `
+          <div class="bg-slate-800/90 border border-slate-700/80 rounded-xl p-4 flex flex-col justify-between hover:border-emerald-500/50 transition shadow">
+            <div>
+              <div class="flex items-center justify-between border-b border-slate-700/60 pb-2 mb-3">
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded text-xs font-semibold bg-emerald-950 text-emerald-400 border border-emerald-800">
+                  <i class="fa-solid fa-flag"></i> ${escapeHtml(item.country)}
+                </span>
+                <div class="flex items-center gap-2">
+                  <span class="text-xs font-mono font-bold px-2 py-0.5 rounded bg-slate-900 text-slate-300 border border-slate-700">
+                    ${escapeHtml(item.code?.toUpperCase() || '')}
+                  </span>
+                  ${adminActionHtml}
+                </div>
+              </div>
+
+              <div class="space-y-2.5 text-xs">
+                <div>
+                  <span class="text-slate-400 uppercase font-semibold text-[10px] tracking-wider block">User</span>
+                  <div class="flex items-center justify-between bg-slate-900/90 p-2 rounded border border-slate-700/60 mt-0.5">
+                    <span class="font-mono text-slate-100 truncate">${escapeHtml(item.user)}</span>
+                    <button onclick="copyText('${escapeAttr(item.user)}', this)" class="text-slate-400 hover:text-emerald-400 ml-2" title="Copy User">
+                      <i class="fa-regular fa-copy"></i>
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <span class="text-slate-400 uppercase font-semibold text-[10px] tracking-wider block">Password</span>
+                  ${passwordRow}
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function applyFilter() {
+      const search = document.getElementById('searchInput').value.trim().toLowerCase();
+      const code = document.getElementById('countrySelect').value;
+
+      const filtered = listings.filter(item => {
+        const matchesCode = (code === 'ALL') || (item.code?.toUpperCase() === code.toUpperCase());
+        const matchesSearch = !search || 
+          item.user?.toLowerCase().includes(search) ||
+          item.country?.toLowerCase().includes(search) ||
+          item.code?.toLowerCase().includes(search) ||
+          (isCurrentApproved() && item.pass?.toLowerCase().includes(search));
+        return matchesCode && matchesSearch;
+      });
+
+      render(filtered);
+    }
+
+    function resetFilters() {
+      document.getElementById('searchInput').value = '';
+      document.getElementById('countrySelect').value = 'ALL';
+      applyFilter();
+    }
+
+    // ==================== LISTING ACTIONS ====================
+    function handleSingleSave(e) {
+      e.preventDefault();
+      if (!isAdmin) return;
+
+      const editIdx = parseInt(document.getElementById('editIndex').value, 10);
+      const user = document.getElementById('addUsername').value.trim();
+      const pass = document.getElementById('addPassword').value.trim();
+      const country = document.getElementById('addCountry').value.trim();
+      const code = document.getElementById('addCountryCode').value.trim().toUpperCase();
+
+      if (editIdx >= 0) {
+        listings[editIdx] = { user, pass, country, code };
+      } else {
+        listings.unshift({ user, pass, country, code });
+      }
+
+      saveLocal();
+      document.getElementById('singleForm').reset();
+      closeModal('singleModal');
+      updateCountrySelect();
+      document.getElementById('countrySelect').value = code;
+      applyFilter();
+    }
+
+    function editListing(idx) {
+      if (!isAdmin) return;
+      const target = listings[idx];
+      if (!target) return;
+
+      document.getElementById('editIndex').value = idx;
+      document.getElementById('singleModalTitle').textContent = "Edit Account";
+      document.getElementById('addUsername').value = target.user;
+      document.getElementById('addPassword').value = target.pass;
+      document.getElementById('addCountry').value = target.country;
+      document.getElementById('addCountryCode').value = target.code;
+      openModal('singleModal');
+    }
+
+    function deleteListing(idx) {
+      if (!isAdmin) return;
+      if (!confirm("Are you sure you want to delete this listing?")) return;
+
+      listings.splice(idx, 1);
+      saveLocal();
+      updateCountrySelect();
+      applyFilter();
+    }
+
+    function handleBulkImport() {
+      if (!isAdmin) return;
+      const raw = document.getElementById('bulkTextInput').value;
+      if (!raw.trim()) return alert("Please paste text first.");
+
+      const regex = /USER\s*:\s*([^\r\n]+)[\r\n\s]+PASSWORD\s*:\s*([^\r\n]+)[\r\n\s]+COUNTRY\s*:\s*([^\r\n]+)[\r\n\s]+COUNTRY CODE\s*:\s*([^\r\n]+)/gi;
+      let match;
+      let count = 0;
+
+      while ((match = regex.exec(raw)) !== null) {
+        listings.unshift({
+          user: match[1].trim(),
+          pass: match[2].trim(),
+          country: match[3].trim(),
+          code: match[4].trim().toUpperCase()
+        });
+        count++;
+      }
+
+      if (count > 0) {
+        saveLocal();
+        document.getElementById('bulkTextInput').value = '';
+        closeModal('bulkModal');
+        updateCountrySelect();
+        applyFilter();
+        alert(`Successfully imported ${count} accounts!`);
+      } else {
+        alert("No valid entries detected.");
+      }
+    }
+
+    function exportData() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(listings, null, 2));
+      const a = document.createElement('a');
+      a.setAttribute("href", dataStr);
+      a.setAttribute("download", `pickpilot_backup_${new Date().toISOString().slice(0,10)}.json`);
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+
+    // Modal Helpers
+    function openModal(id) { 
+      if (id === 'singleModal' && document.getElementById('editIndex').value === "-1") {
+        document.getElementById('singleModalTitle').textContent = "Add Account";
+        document.getElementById('singleForm').reset();
+      }
+      if (id === 'userApprovalModal') renderApprovalList();
+      if (id === 'createClientModal') {
+        document.getElementById('clientLinkBox').classList.add('hidden');
+        document.getElementById('createClientForm').reset();
+        document.getElementById('customTimeVal').value = "30";
+        document.getElementById('customTimeUnit').value = "m";
+      }
+      document.getElementById(id).classList.remove('hidden'); 
+    }
+
+    function closeModal(id) { 
+      if (id === 'singleModal') document.getElementById('editIndex').value = "-1";
+      document.getElementById(id).classList.add('hidden'); 
+    }
+
+    function copyText(val, btn) {
+      navigator.clipboard.writeText(val).then(() => {
+        const icon = btn.querySelector('i');
+        icon.className = 'fa-solid fa-check text-emerald-400';
+        setTimeout(() => { icon.className = 'fa-regular fa-copy'; }, 1200);
+      });
+    }
+
+    function toggleVisibility(id, btn) {
+      const el = document.getElementById(id);
+      const icon = btn.querySelector('i');
+      if (el.dataset.hidden === "true") {
+        el.textContent = el.dataset.realText;
+        el.dataset.hidden = "false";
+        icon.className = 'fa-solid fa-eye text-xs';
+      } else {
+        el.dataset.realText = el.textContent;
+        el.textContent = '••••••••••••';
+        el.dataset.hidden = "true";
+        icon.className = 'fa-solid fa-eye-slash text-xs';
+      }
+    }
+
+    function escapeHtml(str) {
+      return String(str || '').replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[s]);
+    }
+    function escapeAttr(str) {
+      return String(str || '').replace(/'/g, "\\'");
+    }
+
+    checkAuthUI();
+    updateCountrySelect();
+    applyFilter();
+  </script>
+</body>
+</html>
